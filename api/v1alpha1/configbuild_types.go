@@ -39,9 +39,10 @@ type ConfigBuildSpecReference struct {
 }
 
 type TargetSpec struct {
-	Kind     string `json:"kind"`
-	Name     string `json:"name"`
-	ApiGroup string `json:"apiGroup,omitempty"`
+	// The type of object to be created, one of "configmap" or "secret".
+	Kind string `json:"kind"`
+	// The name of the object to be created.
+	Name string `json:"name"`
 }
 
 // ConfigBuildSpec defines the desired state of ConfigBuild
@@ -60,6 +61,9 @@ type ConfigBuildSpec struct {
 
 // ConfigBuildStatus defines the observed state of ConfigBuild
 type ConfigBuildStatus struct {
+	// Conditions store the status conditions of the Memcached instances
+	// +operator-sdk:csv:customresourcedefinitions:type=status
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 }
 
 //+kubebuilder:object:root=true

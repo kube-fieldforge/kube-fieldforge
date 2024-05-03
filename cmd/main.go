@@ -113,9 +113,9 @@ func main() {
 	}
 
 	if err = (&controller.ConfigBuildReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-		//Recorder: mgr.GetEventRecorderFor("configbuild-controller"),
+		Client:   mgr.GetClient(),
+		Scheme:   mgr.GetScheme(),
+		Recorder: mgr.GetEventRecorderFor("configbuild-controller"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "ConfigBuild")
 		os.Exit(1)
