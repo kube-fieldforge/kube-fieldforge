@@ -73,8 +73,6 @@ spec:
                       description: The type of value reference, must be on of "constant",
                         "configMap", "secret"
                       type: string
-                  required:
-                  - type
                   type: object
                 description: Annotations to go in target object
                 type: object
@@ -112,8 +110,6 @@ spec:
                       description: The type of value reference, must be on of "constant",
                         "configMap", "secret"
                       type: string
-                  required:
-                  - type
                   type: object
                 type: object
               labels:
@@ -150,8 +146,6 @@ spec:
                       description: The type of value reference, must be on of "constant",
                         "configMap", "secret"
                       type: string
-                  required:
-                  - type
                   type: object
                 description: Labels to go in target object
                 type: object
@@ -189,8 +183,6 @@ spec:
                       description: The type of value reference, must be on of "constant",
                         "configMap", "secret"
                       type: string
-                  required:
-                  - type
                   type: object
                 type: object
               target:

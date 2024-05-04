@@ -31,11 +31,28 @@ type ObjectValue struct {
 
 type ConfigBuildSpecReference struct {
 	// The type of value reference, must be on of "constant", "configMap", "secret"
-	Type string `json:"type"`
+	Type string `json:"type,omitempty"`
 
-	Constant  ConstantValue `json:"constant,omitempty"`
 	ConfigMap ObjectValue   `json:"configMap,omitempty"`
 	Secret    ObjectValue   `json:"secret,omitempty"`
+	Constant  ConstantValue `json:"constant,omitempty"`
+}
+
+func (c ConfigBuildSpecReference) GetType() string {
+	if c.Type != "" {
+		return c.Type
+	}
+	if c.ConfigMap.Name != "" {
+		return "configmap"
+	}
+	if c.Secret.Name != "" {
+		return "secret"
+	}
+	if c.Constant.Value != "" {
+		return "constant"
+	}
+
+	return ""
 }
 
 type TargetSpec struct {
