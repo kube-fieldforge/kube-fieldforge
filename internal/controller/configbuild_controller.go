@@ -23,6 +23,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/go-logr/logr"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,9 +33,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-
-	"github.com/go-logr/logr"
 
 	corev1 "k8s.io/api/core/v1"
 
@@ -64,6 +62,16 @@ type ConfigBuildReconciler struct {
 //+kubebuilder:rbac:groups=configbuilder.puiterwijk.org,resources=configbuilds/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=configbuilder.puiterwijk.org,resources=configbuilds/finalizers,verbs=update
 
+type UserError struct {
+	Type    string
+	Reason  string
+	Message string
+}
+
+func (u UserError) Error() string {
+	return u.Message
+}
+
 func (r *ConfigBuildReconciler) reportFieldLookupError(ctx context.Context, l logr.Logger, cbuild *configbuilderv1alpha1.ConfigBuild, description string, fieldName string, objName *types.NamespacedName, err error) error {
 	var reason string
 	var message string
@@ -75,23 +83,14 @@ func (r *ConfigBuildReconciler) reportFieldLookupError(ctx context.Context, l lo
 		reason = "ErrorRetrivingSource"
 		message = fmt.Sprintf("error retriving value referenced in %s %s: %v (object %s)", description, fieldName, err, objName)
 	}
-	meta.SetStatusCondition(
-		&cbuild.Status.Conditions,
-		metav1.Condition{
-			Type:    typeGotSourcesConfigBuild,
-			Status:  metav1.ConditionFalse,
-			Reason:  reason,
-			Message: message,
-		},
-	)
-	if err := r.Status().Update(ctx, cbuild); err != nil {
-		l.Error(err, "Failed to update ConfigBuild status")
-		return err
+	return UserError{
+		Type:    typeGotSourcesConfigBuild,
+		Reason:  reason,
+		Message: message,
 	}
-	return nil
 }
 
-func (r *ConfigBuildReconciler) lookupObjectField(ctx context.Context, l logr.Logger, cbuild *configbuilderv1alpha1.ConfigBuild, description string, fieldName string, objectType string, objectName string, objectKey string, isBinary bool) ([]byte, bool, error) {
+func (r *ConfigBuildReconciler) lookupObjectField(ctx context.Context, l logr.Logger, cbuild *configbuilderv1alpha1.ConfigBuild, description string, fieldName string, objectType string, objectName string, objectKey string, isBinary bool) ([]byte, error) {
 	objName := types.NamespacedName{Name: objectName, Namespace: cbuild.Namespace}
 
 	var value string
@@ -102,25 +101,25 @@ func (r *ConfigBuildReconciler) lookupObjectField(ctx context.Context, l logr.Lo
 	case "ConfigMap":
 		obj := &corev1.ConfigMap{}
 		if err := r.Get(ctx, objName, obj); err != nil {
-			return nil, false, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, &objName, err)
+			return nil, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, &objName, err)
 		}
 		value, found = obj.Data[objectKey]
 		if !found {
 			bValue, found = obj.BinaryData[objectKey]
 			if !found {
-				return nil, false, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, &objName, fmt.Errorf("requested key %s not found", objectKey))
+				return nil, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, &objName, fmt.Errorf("requested key %s not found", objectKey))
 			}
 		}
 	case "Secret":
 		obj := &corev1.Secret{}
 		if err := r.Get(ctx, objName, obj); err != nil {
-			return nil, false, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, &objName, err)
+			return nil, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, &objName, err)
 		}
 		value, found = obj.StringData[objectKey]
 		if !found {
 			bValue, found = obj.Data[objectKey]
 			if !found {
-				return nil, false, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, &objName, fmt.Errorf("requested key %s not found", objectKey))
+				return nil, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, &objName, fmt.Errorf("requested key %s not found", objectKey))
 			}
 		}
 	default:
@@ -134,11 +133,11 @@ func (r *ConfigBuildReconciler) lookupObjectField(ctx context.Context, l logr.Lo
 	if !isBinary {
 		// This was set on a binary field of the object
 		if !utf8.Valid(bValue) {
-			return nil, false, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, &objName, fmt.Errorf("requested key %s not valid utf-8", objectKey))
+			return nil, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, &objName, fmt.Errorf("requested key %s not valid utf-8", objectKey))
 		}
 	}
 
-	return bValue, true, nil
+	return bValue, nil
 }
 
 func (r *ConfigBuildReconciler) retrieveData(ctx context.Context, l logr.Logger, cbuild *configbuilderv1alpha1.ConfigBuild, lookups map[string]configbuilderv1alpha1.ConfigBuildSpecReference, description string, isBinary bool) (*map[string][]byte, error) {
@@ -146,21 +145,20 @@ func (r *ConfigBuildReconciler) retrieveData(ctx context.Context, l logr.Logger,
 
 	for key, mapping := range lookups {
 		var value []byte
-		var found bool
 		var err error
 		switch mapping.GetType() {
 		case "constant":
 			value = []byte(mapping.Constant.Value)
 		case "configmap":
-			value, found, err = r.lookupObjectField(ctx, l, cbuild, description, key, "ConfigMap", mapping.ConfigMap.Name, mapping.ConfigMap.Key, isBinary)
+			value, err = r.lookupObjectField(ctx, l, cbuild, description, key, "ConfigMap", mapping.ConfigMap.Name, mapping.ConfigMap.Key, isBinary)
 			// If it wasn't found, the calling function will update the object
-			if !found || err != nil {
+			if err != nil {
 				return nil, err
 			}
 		case "secret":
-			value, found, err = r.lookupObjectField(ctx, l, cbuild, description, key, "Secret", mapping.Secret.Name, mapping.Secret.Key, isBinary)
+			value, err = r.lookupObjectField(ctx, l, cbuild, description, key, "Secret", mapping.Secret.Name, mapping.Secret.Key, isBinary)
 			// If it wasn't found, the calling function will update the object
-			if !found || err != nil {
+			if err != nil {
 				return nil, err
 			}
 		default:
@@ -231,9 +229,11 @@ func (r *ConfigBuildReconciler) buildNewObject(ctx context.Context, l logr.Logge
 			Data:       *binaryData,
 		}, nil
 	default:
-		return nil, reconcile.TerminalError(
-			fmt.Errorf("Invalid target kind %s", cbuild.Spec.Target.Kind),
-		)
+		return nil, UserError{
+			Type:    typeUpdatedTargetConfigBuild,
+			Reason:  "InvalidType",
+			Message: fmt.Sprintf("Requested type %s is not valid", cbuild.Spec.Target.Kind),
+		}
 	}
 }
 
@@ -289,27 +289,39 @@ func (r *ConfigBuildReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 
 	newObject, err := r.buildNewObject(ctx, l, cbuild)
 	if err != nil {
-		l.Error(err, "Failed to construct new object")
-		meta.SetStatusCondition(
-			&cbuild.Status.Conditions,
-			metav1.Condition{
-				Type:    typeGotSourcesConfigBuild,
-				Status:  metav1.ConditionFalse,
-				Reason:  "Failed",
-				Message: err.Error(),
-			},
-		)
+		userErr, isUserErr := err.(UserError)
+		if isUserErr {
+			l.Info("Object wasn't created due to user error", "error", userErr)
+			meta.SetStatusCondition(
+				&cbuild.Status.Conditions,
+				metav1.Condition{
+					Type:    userErr.Type,
+					Status:  metav1.ConditionFalse,
+					Reason:  userErr.Reason,
+					Message: userErr.Message,
+				},
+			)
+		} else {
+			l.Error(err, "Failed to construct new object")
+			meta.SetStatusCondition(
+				&cbuild.Status.Conditions,
+				metav1.Condition{
+					Type:    typeGotSourcesConfigBuild,
+					Status:  metav1.ConditionFalse,
+					Reason:  "Failed",
+					Message: err.Error(),
+				},
+			)
+		}
 		if err := r.Status().Update(ctx, cbuild); err != nil {
 			l.Error(err, "Failed to update ConfigBuild status")
 			return ctrl.Result{}, err
 		}
-		return ctrl.Result{}, err
-	}
-	if newObject == nil {
-		l.Info("Not all sources existed. Status should be updated by creator. Re-queueing later")
-		return ctrl.Result{
-			Requeue: true,
-		}, nil
+		if isUserErr {
+			return ctrl.Result{}, nil
+		} else {
+			return ctrl.Result{}, err
+		}
 	}
 
 	meta.SetStatusCondition(
