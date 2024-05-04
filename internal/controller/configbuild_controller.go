@@ -288,6 +288,9 @@ func (r *ConfigBuildReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	}
 
 	newObject, err := r.buildNewObject(ctx, l, cbuild)
+	if err := ctrl.SetControllerReference(cbuild, newObject, r.Scheme); err != nil {
+		return ctrl.Result{}, err
+	}
 	if err != nil {
 		userErr, isUserErr := err.(UserError)
 		if isUserErr {
