@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
@@ -63,16 +64,16 @@ type ConfigBuildReconciler struct {
 //+kubebuilder:rbac:groups=configbuilder.puiterwijk.org,resources=configbuilds/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=configbuilder.puiterwijk.org,resources=configbuilds/finalizers,verbs=update
 
-func (r *ConfigBuildReconciler) reportFieldLookupError(ctx context.Context, l logr.Logger, cbuild *configbuilderv1alpha1.ConfigBuild, description string, fieldName string, err error) error {
+func (r *ConfigBuildReconciler) reportFieldLookupError(ctx context.Context, l logr.Logger, cbuild *configbuilderv1alpha1.ConfigBuild, description string, fieldName string, objName *types.NamespacedName, err error) error {
 	var reason string
 	var message string
 
 	if apierrors.IsNotFound(err) {
 		reason = "SourceNotFound"
-		message = fmt.Sprintf("object referenced in %s %s not found", description, fieldName)
+		message = fmt.Sprintf("object %s referenced in %s %s not found", objName, description, fieldName)
 	} else {
 		reason = "ErrorRetrivingSource"
-		message = fmt.Sprintf("error retriving value referenced in %s %s: %v", description, fieldName, err)
+		message = fmt.Sprintf("error retriving value referenced in %s %s: %v (object %s)", description, fieldName, err, objName)
 	}
 	meta.SetStatusCondition(
 		&cbuild.Status.Conditions,
@@ -90,60 +91,80 @@ func (r *ConfigBuildReconciler) reportFieldLookupError(ctx context.Context, l lo
 	return nil
 }
 
-func (r *ConfigBuildReconciler) lookupObjectFieldString(ctx context.Context, l logr.Logger, cbuild *configbuilderv1alpha1.ConfigBuild, description string, fieldName string, objectType string, objectName string, objectKey string) (string, bool, error) {
+func (r *ConfigBuildReconciler) lookupObjectField(ctx context.Context, l logr.Logger, cbuild *configbuilderv1alpha1.ConfigBuild, description string, fieldName string, objectType string, objectName string, objectKey string, isBinary bool) ([]byte, bool, error) {
 	objName := types.NamespacedName{Name: objectName, Namespace: cbuild.Namespace}
+
+	var value string
+	var bValue []byte
+	var found bool
 
 	switch objectType {
 	case "ConfigMap":
 		obj := &corev1.ConfigMap{}
 		if err := r.Get(ctx, objName, obj); err != nil {
-			return "", false, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, err)
+			return nil, false, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, &objName, err)
 		}
-		value, found := obj.Data[objectKey]
+		value, found = obj.Data[objectKey]
 		if !found {
-			return "", false, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, fmt.Errorf("requested key %s not found", objectKey))
+			bValue, found = obj.BinaryData[objectKey]
+			if !found {
+				return nil, false, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, &objName, fmt.Errorf("requested key %s not found", objectKey))
+			}
 		}
-		return value, true, nil
 	case "Secret":
 		obj := &corev1.Secret{}
 		if err := r.Get(ctx, objName, obj); err != nil {
-			return "", false, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, err)
+			return nil, false, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, &objName, err)
 		}
-		value, found := obj.StringData[objectKey]
+		value, found = obj.StringData[objectKey]
 		if !found {
-			return "", false, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, fmt.Errorf("requested key %s not found", objectKey))
+			bValue, found = obj.Data[objectKey]
+			if !found {
+				return nil, false, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, &objName, fmt.Errorf("requested key %s not found", objectKey))
+			}
 		}
-		return value, true, nil
 	default:
 		// This should be impossible...
 		panic(fmt.Sprintf("Reached unknown object field string type... %s", objectType))
 	}
+
+	if value != "" {
+		bValue = []byte(value)
+	}
+	if !isBinary {
+		// This was set on a binary field of the object
+		if !utf8.Valid(bValue) {
+			return nil, false, r.reportFieldLookupError(ctx, l, cbuild, description, fieldName, &objName, fmt.Errorf("requested key %s not valid utf-8", objectKey))
+		}
+	}
+
+	return bValue, true, nil
 }
 
-func (r *ConfigBuildReconciler) retrieveStringData(ctx context.Context, l logr.Logger, cbuild *configbuilderv1alpha1.ConfigBuild, lookups map[string]configbuilderv1alpha1.ConfigBuildSpecReference, description string) (*map[string]string, error) {
-	result := map[string]string{}
+func (r *ConfigBuildReconciler) retrieveData(ctx context.Context, l logr.Logger, cbuild *configbuilderv1alpha1.ConfigBuild, lookups map[string]configbuilderv1alpha1.ConfigBuildSpecReference, description string, isBinary bool) (*map[string][]byte, error) {
+	result := map[string][]byte{}
 
 	for key, mapping := range lookups {
-		var value string
+		var value []byte
 		var found bool
 		var err error
 		switch mapping.GetType() {
 		case "constant":
-			value = mapping.Constant.Value
+			value = []byte(mapping.Constant.Value)
 		case "configmap":
-			value, found, err = r.lookupObjectFieldString(ctx, l, cbuild, description, key, "ConfigMap", mapping.ConfigMap.Name, mapping.ConfigMap.Key)
+			value, found, err = r.lookupObjectField(ctx, l, cbuild, description, key, "ConfigMap", mapping.ConfigMap.Name, mapping.ConfigMap.Key, isBinary)
 			// If it wasn't found, the calling function will update the object
 			if !found || err != nil {
 				return nil, err
 			}
 		case "secret":
-			value, found, err = r.lookupObjectFieldString(ctx, l, cbuild, description, key, "Secret", mapping.ConfigMap.Name, mapping.ConfigMap.Key)
+			value, found, err = r.lookupObjectField(ctx, l, cbuild, description, key, "Secret", mapping.Secret.Name, mapping.Secret.Key, isBinary)
 			// If it wasn't found, the calling function will update the object
 			if !found || err != nil {
 				return nil, err
 			}
 		default:
-			return nil, r.reportFieldLookupError(ctx, l, cbuild, description, key, fmt.Errorf("invalid type %s", mapping.GetType()))
+			return nil, r.reportFieldLookupError(ctx, l, cbuild, description, key, nil, fmt.Errorf("invalid type %s", mapping.GetType()))
 		}
 		result[key] = value
 	}
@@ -151,24 +172,29 @@ func (r *ConfigBuildReconciler) retrieveStringData(ctx context.Context, l logr.L
 	return &result, nil
 }
 
-func (r *ConfigBuildReconciler) retrieveBinaryData(ctx context.Context, l logr.Logger, cbuild *configbuilderv1alpha1.ConfigBuild, lookups map[string]configbuilderv1alpha1.ConfigBuildSpecReference, description string) (*map[string][]byte, error) {
-	return nil, fmt.Errorf("TODO")
+func mappedBytesToMappedString(input map[string][]byte) (out map[string]string) {
+	// This function just panics if it's not valid utf8 - this should've been caught by the lookup method because !isBinary
+	out = make(map[string]string)
+	for key, value := range input {
+		out[key] = string(value)
+	}
+	return
 }
 
 func (r *ConfigBuildReconciler) buildNewObject(ctx context.Context, l logr.Logger, cbuild *configbuilderv1alpha1.ConfigBuild) (client.Object, error) {
-	annotations, err := r.retrieveStringData(ctx, l, cbuild, cbuild.Spec.Annotations, "annotations")
+	annotations, err := r.retrieveData(ctx, l, cbuild, cbuild.Spec.Annotations, "annotations", false)
 	if err != nil || annotations == nil {
 		return nil, err
 	}
-	labels, err := r.retrieveStringData(ctx, l, cbuild, cbuild.Spec.Labels, "labels")
+	labels, err := r.retrieveData(ctx, l, cbuild, cbuild.Spec.Labels, "labels", false)
 	if err != nil || labels == nil {
 		return nil, err
 	}
-	stringData, err := r.retrieveStringData(ctx, l, cbuild, cbuild.Spec.StringData, "stringData")
+	stringData, err := r.retrieveData(ctx, l, cbuild, cbuild.Spec.StringData, "stringData", false)
 	if err != nil || stringData == nil {
 		return nil, err
 	}
-	binaryData, err := r.retrieveBinaryData(ctx, l, cbuild, cbuild.Spec.BinaryData, "binaryData")
+	binaryData, err := r.retrieveData(ctx, l, cbuild, cbuild.Spec.BinaryData, "binaryData", true)
 	if err != nil || binaryData == nil {
 		return nil, err
 	}
@@ -177,8 +203,8 @@ func (r *ConfigBuildReconciler) buildNewObject(ctx context.Context, l logr.Logge
 		Name:      cbuild.Spec.Target.Name,
 		Namespace: cbuild.Namespace,
 
-		Annotations: *annotations,
-		Labels:      *labels,
+		Annotations: mappedBytesToMappedString(*annotations),
+		Labels:      mappedBytesToMappedString(*labels),
 	}
 
 	switch strings.ToLower(cbuild.Spec.Target.Kind) {
@@ -190,7 +216,7 @@ func (r *ConfigBuildReconciler) buildNewObject(ctx context.Context, l logr.Logge
 			},
 
 			ObjectMeta: objMeta,
-			Data:       *stringData,
+			Data:       mappedBytesToMappedString(*stringData),
 			BinaryData: *binaryData,
 		}, nil
 	case "secret":
@@ -201,7 +227,7 @@ func (r *ConfigBuildReconciler) buildNewObject(ctx context.Context, l logr.Logge
 			},
 
 			ObjectMeta: objMeta,
-			StringData: *stringData,
+			StringData: mappedBytesToMappedString(*stringData),
 			Data:       *binaryData,
 		}, nil
 	default:
