@@ -58,7 +58,7 @@ type FieldForgeReconciler struct {
 	Scheme   *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=,resources=configmaps;secrets,verbs=get;list;create;update;patch
+//+kubebuilder:rbac:groups="",resources=configmaps;secrets,verbs=get;list;create;update;patch
 //+kubebuilder:rbac:groups=fieldforge.puiterwijk.org,resources=fieldforges,verbs=get;list;watch
 //+kubebuilder:rbac:groups=fieldforge.puiterwijk.org,resources=fieldforges/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=fieldforge.puiterwijk.org,resources=fieldforges/finalizers,verbs=update
