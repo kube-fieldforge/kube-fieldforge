@@ -4,17 +4,22 @@ kind: ClusterRole
 metadata:
   name: manager-role
 rules:
+- resources:
+  - configmaps
+  - secrets
+  verbs:
+  - create
+  - get
+  - list
+  - patch
+  - update
 - apiGroups:
   - fieldforge.puiterwijk.org
   resources:
   - fieldforges
   verbs:
-  - create
-  - delete
   - get
   - list
-  - patch
-  - update
   - watch
 - apiGroups:
   - fieldforge.puiterwijk.org

@@ -1,0 +1,288 @@
+apiVersion: operators.coreos.com/v1alpha1
+kind: ClusterServiceVersion
+metadata:
+  annotations:
+    alm-examples: |-
+      [
+        {
+          "apiVersion": "fieldforge.puiterwijk.org/v1alpha1",
+          "kind": "FieldForge",
+          "metadata": {
+            "name": "fieldforge-sample"
+          },
+          "spec": {
+            "annotations": {
+              "test_constant": {
+                "constant": {
+                  "value": "someannotation"
+                },
+                "type": "constant"
+              }
+            },
+            "binaryData": {
+              "binary_from_cm": {
+                "configMap": {
+                  "key": "cm_test_binary",
+                  "name": "cm-test"
+                },
+                "type": "configmap"
+              },
+              "binary_from_secret": {
+                "secret": {
+                  "key": "secret_test_binary",
+                  "name": "secret-test"
+                },
+                "type": "secret"
+              }
+            },
+            "labels": {
+              "test_label": {
+                "constant": {
+                  "value": "somelabel"
+                },
+                "type": "constant"
+              }
+            },
+            "stringData": {
+              "string_constant": {
+                "constant": {
+                  "value": "someconstant"
+                },
+                "type": "constant"
+              },
+              "string_from_cm": {
+                "configMap": {
+                  "key": "cm_test_string",
+                  "name": "cm-test"
+                },
+                "type": "configmap"
+              },
+              "string_from_secret": {
+                "secret": {
+                  "key": "secret_test_string",
+                  "name": "secret-test"
+                },
+                "type": "secret"
+              }
+            },
+            "target": {
+              "kind": "ConfigMap",
+              "name": "built-cm"
+            }
+          }
+        }
+      ]
+    capabilities: Basic Install
+    createdAt: "2024-05-06T07:28:04Z"
+    operators.operatorframework.io/builder: operator-sdk-v1.34.1
+    operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
+  name: kube-fieldforge.v0.0.1
+  namespace: placeholder
+spec:
+  apiservicedefinitions: {}
+  customresourcedefinitions:
+    owned:
+    - description: FieldForge is the Schema for the fieldforges API
+      displayName: Field Forge
+      kind: FieldForge
+      name: fieldforges.fieldforge.puiterwijk.org
+      statusDescriptors:
+      - description: Conditions store the status conditions of the FieldForge instances
+        displayName: Conditions
+        path: conditions
+      version: v1alpha1
+  description: FieldForge operator builds ConfigMaps and Secrets from other sources
+  displayName: FieldForge
+  icon:
+  - base64data: ""
+    mediatype: ""
+  install:
+    spec:
+      clusterPermissions:
+      - rules:
+        - resources:
+          - configmaps
+          - secrets
+          verbs:
+          - create
+          - get
+          - list
+          - patch
+          - update
+        - apiGroups:
+          - fieldforge.puiterwijk.org
+          resources:
+          - fieldforges
+          verbs:
+          - get
+          - list
+          - watch
+        - apiGroups:
+          - fieldforge.puiterwijk.org
+          resources:
+          - fieldforges/finalizers
+          verbs:
+          - update
+        - apiGroups:
+          - fieldforge.puiterwijk.org
+          resources:
+          - fieldforges/status
+          verbs:
+          - get
+          - patch
+          - update
+        - apiGroups:
+          - authentication.k8s.io
+          resources:
+          - tokenreviews
+          verbs:
+          - create
+        - apiGroups:
+          - authorization.k8s.io
+          resources:
+          - subjectaccessreviews
+          verbs:
+          - create
+        serviceAccountName: kube-fieldforge-controller-manager
+      deployments:
+      - label:
+          app.kubernetes.io/component: manager
+          app.kubernetes.io/created-by: kube-fieldforge
+          app.kubernetes.io/instance: controller-manager
+          app.kubernetes.io/managed-by: kustomize
+          app.kubernetes.io/name: deployment
+          app.kubernetes.io/part-of: kube-fieldforge
+          control-plane: controller-manager
+        name: kube-fieldforge-controller-manager
+        spec:
+          replicas: 1
+          selector:
+            matchLabels:
+              control-plane: controller-manager
+          strategy: {}
+          template:
+            metadata:
+              annotations:
+                kubectl.kubernetes.io/default-container: manager
+              labels:
+                control-plane: controller-manager
+            spec:
+              containers:
+              - args:
+                - --secure-listen-address=0.0.0.0:8443
+                - --upstream=http://127.0.0.1:8080/
+                - --logtostderr=true
+                - --v=0
+                image: gcr.io/kubebuilder/kube-rbac-proxy:v0.15.0
+                name: kube-rbac-proxy
+                ports:
+                - containerPort: 8443
+                  name: https
+                  protocol: TCP
+                resources:
+                  limits:
+                    cpu: 500m
+                    memory: 128Mi
+                  requests:
+                    cpu: 5m
+                    memory: 64Mi
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop:
+                    - ALL
+              - args:
+                - --health-probe-bind-address=:8081
+                - --metrics-bind-address=127.0.0.1:8080
+                - --leader-elect
+                command:
+                - /manager
+                image: quay.io/kube-fieldforge/kube-fieldforge:0.0.1
+                livenessProbe:
+                  httpGet:
+                    path: /healthz
+                    port: 8081
+                  initialDelaySeconds: 15
+                  periodSeconds: 20
+                name: manager
+                readinessProbe:
+                  httpGet:
+                    path: /readyz
+                    port: 8081
+                  initialDelaySeconds: 5
+                  periodSeconds: 10
+                resources:
+                  limits:
+                    cpu: 500m
+                    memory: 128Mi
+                  requests:
+                    cpu: 10m
+                    memory: 64Mi
+                securityContext:
+                  allowPrivilegeEscalation: false
+                  capabilities:
+                    drop:
+                    - ALL
+              securityContext:
+                runAsNonRoot: true
+              serviceAccountName: kube-fieldforge-controller-manager
+              terminationGracePeriodSeconds: 10
+      permissions:
+      - rules:
+        - apiGroups:
+          - ""
+          resources:
+          - configmaps
+          verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+        - apiGroups:
+          - coordination.k8s.io
+          resources:
+          - leases
+          verbs:
+          - get
+          - list
+          - watch
+          - create
+          - update
+          - patch
+          - delete
+        - apiGroups:
+          - ""
+          resources:
+          - events
+          verbs:
+          - create
+          - patch
+        serviceAccountName: kube-fieldforge-controller-manager
+    strategy: deployment
+  installModes:
+  - supported: false
+    type: OwnNamespace
+  - supported: false
+    type: SingleNamespace
+  - supported: false
+    type: MultiNamespace
+  - supported: true
+    type: AllNamespaces
+  keywords:
+  - configmap
+  - secret
+  links:
+  - name: Kube FieldForge
+    url: https://github.com/kube-fieldforge/kube-fieldforge
+  maintainers:
+  - email: patrick@puiterwijk.org
+    name: Patrick Uiterwijk
+  maturity: alpha
+  minKubeVersion: 1.16.0
+  provider:
+    name: Patrick Uiterwijk
+    url: https://github.com/kube-fieldforge
+  version: 0.0.1
