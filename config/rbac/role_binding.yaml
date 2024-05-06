@@ -5,8 +5,8 @@ metadata:
     app.kubernetes.io/name: clusterrolebinding
     app.kubernetes.io/instance: manager-rolebinding
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: kube-configbuilder
-    app.kubernetes.io/part-of: kube-configbuilder
+    app.kubernetes.io/created-by: kube-fieldforge
+    app.kubernetes.io/part-of: kube-fieldforge
     app.kubernetes.io/managed-by: kustomize
   name: manager-rolebinding
 roleRef:

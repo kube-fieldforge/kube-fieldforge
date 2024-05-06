@@ -32,7 +32,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	configbuilderv1alpha1 "github.com/puiterwijk/kube-configbuilder/api/v1alpha1"
+	fieldforgev1alpha1 "github.com/kube-fieldforge/kube-fieldforge/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -72,7 +72,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	err = configbuilderv1alpha1.AddToScheme(scheme.Scheme)
+	err = fieldforgev1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	//+kubebuilder:scaffold:scheme

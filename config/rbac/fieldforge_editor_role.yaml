@@ -1,20 +1,20 @@
-# permissions for end users to edit configbuilds.
+# permissions for end users to edit fieldforges.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   labels:
     app.kubernetes.io/name: clusterrole
-    app.kubernetes.io/instance: configbuild-editor-role
+    app.kubernetes.io/instance: fieldforge-editor-role
     app.kubernetes.io/component: rbac
-    app.kubernetes.io/created-by: kube-configbuilder
-    app.kubernetes.io/part-of: kube-configbuilder
+    app.kubernetes.io/created-by: kube-fieldforge
+    app.kubernetes.io/part-of: kube-fieldforge
     app.kubernetes.io/managed-by: kustomize
-  name: configbuild-editor-role
+  name: fieldforge-editor-role
 rules:
 - apiGroups:
-  - configbuilder.puiterwijk.org
+  - fieldforge.puiterwijk.org
   resources:
-  - configbuilds
+  - fieldforges
   verbs:
   - create
   - delete
@@ -24,8 +24,8 @@ rules:
   - update
   - watch
 - apiGroups:
-  - configbuilder.puiterwijk.org
+  - fieldforge.puiterwijk.org
   resources:
-  - configbuilds/status
+  - fieldforges/status
   verbs:
   - get

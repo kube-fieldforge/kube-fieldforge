@@ -1,0 +1,12 @@
+apiVersion: fieldforge.puiterwijk.org/v1alpha1
+kind: FieldForge
+metadata:
+  labels:
+    app.kubernetes.io/name: fieldforge
+    app.kubernetes.io/instance: fieldforge-sample
+    app.kubernetes.io/part-of: kube-fieldforge
+    app.kubernetes.io/managed-by: kustomize
+    app.kubernetes.io/created-by: kube-fieldforge
+  name: fieldforge-sample
+spec:
+  # TODO(user): Add fields here

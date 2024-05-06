@@ -1,2 +1,2 @@
-# kube-configbuilder
-Kubernetes Operator for building ConfigMaps and Secrets from other resources
+# kube-fieldforge
+Kubernetes Operator for forging ConfigMaps and Secrets from other resources

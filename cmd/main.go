@@ -34,8 +34,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	configbuilderv1alpha1 "github.com/puiterwijk/kube-configbuilder/api/v1alpha1"
-	"github.com/puiterwijk/kube-configbuilder/internal/controller"
+	fieldforgev1alpha1 "github.com/kube-fieldforge/kube-fieldforge/api/v1alpha1"
+	"github.com/kube-fieldforge/kube-fieldforge/internal/controller"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -47,7 +47,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
-	utilruntime.Must(configbuilderv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(fieldforgev1alpha1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 }
 
@@ -104,7 +104,7 @@ func main() {
 		WebhookServer:                 webhookServer,
 		HealthProbeBindAddress:        probeAddr,
 		LeaderElection:                enableLeaderElection,
-		LeaderElectionID:              "c083c78c.configbuilder.puiterwijk.org",
+		LeaderElectionID:              "c083c78c.fieldforge.puiterwijk.org",
 		LeaderElectionReleaseOnCancel: true,
 	})
 	if err != nil {
@@ -112,12 +112,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controller.ConfigBuildReconciler{
+	if err = (&controller.FieldForgeReconciler{
 		Client:   mgr.GetClient(),
 		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("configbuild-controller"),
+		Recorder: mgr.GetEventRecorderFor("fieldforge-controller"),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "ConfigBuild")
+		setupLog.Error(err, "unable to create controller", "controller", "FieldForge")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder

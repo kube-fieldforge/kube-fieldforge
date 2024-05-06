@@ -5,9 +5,9 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
-  - configbuilder.puiterwijk.org
+  - fieldforge.puiterwijk.org
   resources:
-  - configbuilds
+  - fieldforges
   verbs:
   - create
   - delete
@@ -17,15 +17,15 @@ rules:
   - update
   - watch
 - apiGroups:
-  - configbuilder.puiterwijk.org
+  - fieldforge.puiterwijk.org
   resources:
-  - configbuilds/finalizers
+  - fieldforges/finalizers
   verbs:
   - update
 - apiGroups:
-  - configbuilder.puiterwijk.org
+  - fieldforge.puiterwijk.org
   resources:
-  - configbuilds/status
+  - fieldforges/status
   verbs:
   - get
   - patch

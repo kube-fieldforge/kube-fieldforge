@@ -4,20 +4,20 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.14.0
-  name: configbuilds.configbuilder.puiterwijk.org
+  name: fieldforges.fieldforge.puiterwijk.org
 spec:
-  group: configbuilder.puiterwijk.org
+  group: fieldforge.puiterwijk.org
   names:
-    kind: ConfigBuild
-    listKind: ConfigBuildList
-    plural: configbuilds
-    singular: configbuild
+    kind: FieldForge
+    listKind: FieldForgeList
+    plural: fieldforges
+    singular: fieldforge
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: ConfigBuild is the Schema for the configbuilds API
+        description: FieldForge is the Schema for the fieldforges API
         properties:
           apiVersion:
             description: |-
@@ -37,7 +37,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: ConfigBuildSpec defines the desired state of ConfigBuild
+            description: FieldForgeSpec defines the desired state of FieldForge
             properties:
               annotations:
                 additionalProperties:
@@ -203,10 +203,10 @@ spec:
             - target
             type: object
           status:
-            description: ConfigBuildStatus defines the observed state of ConfigBuild
+            description: FieldForgeStatus defines the observed state of FieldForge
             properties:
               conditions:
-                description: Conditions store the status conditions of the Memcached
+                description: Conditions store the status conditions of the FieldForge
                   instances
                 items:
                   description: "Condition contains details for one aspect of the current

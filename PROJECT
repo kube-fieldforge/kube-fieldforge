@@ -8,16 +8,16 @@ layout:
 plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
-projectName: kube-configbuilder
-repo: github.com/puiterwijk/kube-configbuilder
+projectName: kube-fieldforge
+repo: github.com/kube-fieldforge/kube-fieldforge
 resources:
 - api:
     crdVersion: v1
     namespaced: true
   controller: true
   domain: puiterwijk.org
-  group: configbuilder
-  kind: ConfigBuild
-  path: github.com/puiterwijk/kube-configbuilder/api/v1alpha1
+  group: fieldforge
+  kind: FieldForge
+  path: github.com/kube-fieldforge/kube-fieldforge/api/v1alpha1
   version: v1alpha1
 version: "3"

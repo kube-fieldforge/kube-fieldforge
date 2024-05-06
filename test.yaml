@@ -17,10 +17,10 @@ stringData:
 data:
   secret_test_binary: YmFyNDU2Cg==
 ---
-apiVersion: configbuilder.puiterwijk.org/v1alpha1
-kind: ConfigBuild
+apiVersion: fieldforge.puiterwijk.org/v1alpha1
+kind: FieldForge
 metadata:
-  name: configbuild-sample
+  name: fieldforge-sample
 spec:
   target:
     kind: ConfigMap

@@ -28,10 +28,10 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	configbuilderv1alpha1 "github.com/puiterwijk/kube-configbuilder/api/v1alpha1"
+	fieldforgev1alpha1 "github.com/kube-fieldforge/kube-fieldforge/api/v1alpha1"
 )
 
-var _ = Describe("ConfigBuild Controller", func() {
+var _ = Describe("FieldForge Controller", func() {
 	Context("When reconciling a resource", func() {
 		const resourceName = "test-resource"
 
@@ -41,13 +41,13 @@ var _ = Describe("ConfigBuild Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		configbuild := &configbuilderv1alpha1.ConfigBuild{}
+		fieldforge := &fieldforgev1alpha1.FieldForge{}
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind ConfigBuild")
-			err := k8sClient.Get(ctx, typeNamespacedName, configbuild)
+			By("creating the custom resource for the Kind FieldForge")
+			err := k8sClient.Get(ctx, typeNamespacedName, fieldforge)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &configbuilderv1alpha1.ConfigBuild{
+				resource := &fieldforgev1alpha1.FieldForge{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -60,17 +60,17 @@ var _ = Describe("ConfigBuild Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &configbuilderv1alpha1.ConfigBuild{}
+			resource := &fieldforgev1alpha1.FieldForge{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
-			By("Cleanup the specific resource instance ConfigBuild")
+			By("Cleanup the specific resource instance FieldForge")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
 		})
 
 		It("should successfully reconcile the resource", func() {
 			By("Reconciling the created resource")
-			controllerReconciler := &ConfigBuildReconciler{
+			controllerReconciler := &FieldForgeReconciler{
 				Client: k8sClient,
 				Scheme: k8sClient.Scheme(),
 			}

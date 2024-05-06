@@ -29,7 +29,7 @@ type ObjectValue struct {
 	Key  string `json:"key"`
 }
 
-type ConfigBuildSpecReference struct {
+type FieldForgeSpecReference struct {
 	// The type of value reference, must be on of "constant", "configMap", "secret"
 	Type string `json:"type,omitempty"`
 
@@ -38,7 +38,7 @@ type ConfigBuildSpecReference struct {
 	Constant  ConstantValue `json:"constant,omitempty"`
 }
 
-func (c ConfigBuildSpecReference) GetType() string {
+func (c FieldForgeSpecReference) GetType() string {
 	if c.Type != "" {
 		return c.Type
 	}
@@ -62,23 +62,23 @@ type TargetSpec struct {
 	Name string `json:"name"`
 }
 
-// ConfigBuildSpec defines the desired state of ConfigBuild
-type ConfigBuildSpec struct {
+// FieldForgeSpec defines the desired state of FieldForge
+type FieldForgeSpec struct {
 	// The target configmap or secret to make/maintain
 	Target TargetSpec `json:"target"`
 
 	// Annotations to go in target object
-	Annotations map[string]ConfigBuildSpecReference `json:"annotations,omitempty"`
+	Annotations map[string]FieldForgeSpecReference `json:"annotations,omitempty"`
 	// Labels to go in target object
-	Labels map[string]ConfigBuildSpecReference `json:"labels,omitempty"`
+	Labels map[string]FieldForgeSpecReference `json:"labels,omitempty"`
 
-	StringData map[string]ConfigBuildSpecReference `json:"stringData,omitempty"`
-	BinaryData map[string]ConfigBuildSpecReference `json:"binaryData,omitempty"`
+	StringData map[string]FieldForgeSpecReference `json:"stringData,omitempty"`
+	BinaryData map[string]FieldForgeSpecReference `json:"binaryData,omitempty"`
 }
 
-// ConfigBuildStatus defines the observed state of ConfigBuild
-type ConfigBuildStatus struct {
-	// Conditions store the status conditions of the Memcached instances
+// FieldForgeStatus defines the observed state of FieldForge
+type FieldForgeStatus struct {
+	// Conditions store the status conditions of the FieldForge instances
 	// +operator-sdk:csv:customresourcedefinitions:type=status
 	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 }
@@ -86,24 +86,24 @@ type ConfigBuildStatus struct {
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
 
-// ConfigBuild is the Schema for the configbuilds API
-type ConfigBuild struct {
+// FieldForge is the Schema for the fieldforges API
+type FieldForge struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ConfigBuildSpec   `json:"spec,omitempty"`
-	Status ConfigBuildStatus `json:"status,omitempty"`
+	Spec   FieldForgeSpec   `json:"spec,omitempty"`
+	Status FieldForgeStatus `json:"status,omitempty"`
 }
 
 //+kubebuilder:object:root=true
 
-// ConfigBuildList contains a list of ConfigBuild
-type ConfigBuildList struct {
+// FieldForgeList contains a list of FieldForge
+type FieldForgeList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []ConfigBuild `json:"items"`
+	Items           []FieldForge `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&ConfigBuild{}, &ConfigBuildList{})
+	SchemeBuilder.Register(&FieldForge{}, &FieldForgeList{})
 }

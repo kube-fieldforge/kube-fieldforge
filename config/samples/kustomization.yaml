@@ -1,4 +1,4 @@
 ## Append samples of your project ##
 resources:
-- configbuilder_v1alpha1_configbuild.yaml
+- fieldforges_v1alpha1_fieldforge.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

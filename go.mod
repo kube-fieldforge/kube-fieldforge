@@ -1,4 +1,4 @@
-module github.com/puiterwijk/kube-configbuilder
+module github.com/kube-fieldforge/kube-fieldforge
 
 go 1.20
 
