@@ -73,7 +73,7 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2024-05-06T07:28:04Z"
+    createdAt: "2024-05-06T09:32:45Z"
     operators.operatorframework.io/builder: operator-sdk-v1.34.1
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
   name: kube-fieldforge.v0.0.1
@@ -100,7 +100,9 @@ spec:
     spec:
       clusterPermissions:
       - rules:
-        - resources:
+        - apiGroups:
+          - ""
+          resources:
           - configmaps
           - secrets
           verbs:
