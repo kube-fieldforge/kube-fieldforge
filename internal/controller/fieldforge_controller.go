@@ -18,12 +18,12 @@ package controller
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/go-logr/logr"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -48,7 +48,7 @@ const (
 	// typeUpdatedTargetFieldForge represents whether the target object was updated.
 	typeUpdatedTargetFieldForge = "UpdatedTarget"
 
-	updateTime = 2 * time.Minute
+	UpdateTime = 2 * time.Minute
 )
 
 // FieldForgeReconciler reconciles a FieldForge object
@@ -67,13 +67,16 @@ type UserError struct {
 	Type    string
 	Reason  string
 	Message string
+
+	ShouldRequeue bool
+	RequeueAfter  time.Duration
 }
 
 func (u UserError) Error() string {
 	return u.Message
 }
 
-func (r *FieldForgeReconciler) reportFieldLookupError(ctx context.Context, l logr.Logger, fforge *fieldforgev1alpha1.FieldForge, description string, fieldName string, objName *types.NamespacedName, err error) error {
+func (r *FieldForgeReconciler) reportFieldLookupError(shouldRetry bool, description string, fieldName string, objName *types.NamespacedName, err error) error {
 	var reason string
 	var message string
 
@@ -81,17 +84,24 @@ func (r *FieldForgeReconciler) reportFieldLookupError(ctx context.Context, l log
 		reason = "SourceNotFound"
 		message = fmt.Sprintf("object %s referenced in %s %s not found", objName, description, fieldName)
 	} else {
-		reason = "ErrorRetrivingSource"
+		reason = "ErrorRetrievingSource"
 		message = fmt.Sprintf("error retriving value referenced in %s %s: %v (object %s)", description, fieldName, err, objName)
 	}
-	return UserError{
+	rerr := UserError{
 		Type:    typeGotSourcesFieldForge,
 		Reason:  reason,
 		Message: message,
 	}
+
+	if shouldRetry {
+		rerr.ShouldRequeue = true
+		rerr.RequeueAfter = UpdateTime
+	}
+
+	return rerr
 }
 
-func (r *FieldForgeReconciler) lookupObjectField(ctx context.Context, l logr.Logger, fforge *fieldforgev1alpha1.FieldForge, description string, fieldName string, objectType string, objectName string, objectKey string, isBinary bool) ([]byte, error) {
+func (r *FieldForgeReconciler) lookupObjectField(ctx context.Context, fforge *fieldforgev1alpha1.FieldForge, description string, fieldName string, objectType string, objectName string, objectKey string, isBinary bool) ([]byte, error) {
 	objName := types.NamespacedName{Name: objectName, Namespace: fforge.Namespace}
 
 	var value string
@@ -102,25 +112,25 @@ func (r *FieldForgeReconciler) lookupObjectField(ctx context.Context, l logr.Log
 	case "ConfigMap":
 		obj := &corev1.ConfigMap{}
 		if err := r.Get(ctx, objName, obj); err != nil {
-			return nil, r.reportFieldLookupError(ctx, l, fforge, description, fieldName, &objName, err)
+			return nil, r.reportFieldLookupError(true, description, fieldName, &objName, err)
 		}
 		value, found = obj.Data[objectKey]
 		if !found {
 			bValue, found = obj.BinaryData[objectKey]
 			if !found {
-				return nil, r.reportFieldLookupError(ctx, l, fforge, description, fieldName, &objName, fmt.Errorf("requested key %s not found", objectKey))
+				return nil, r.reportFieldLookupError(true, description, fieldName, &objName, fmt.Errorf("requested key %s not found", objectKey))
 			}
 		}
 	case "Secret":
 		obj := &corev1.Secret{}
 		if err := r.Get(ctx, objName, obj); err != nil {
-			return nil, r.reportFieldLookupError(ctx, l, fforge, description, fieldName, &objName, err)
+			return nil, r.reportFieldLookupError(true, description, fieldName, &objName, err)
 		}
 		value, found = obj.StringData[objectKey]
 		if !found {
 			bValue, found = obj.Data[objectKey]
 			if !found {
-				return nil, r.reportFieldLookupError(ctx, l, fforge, description, fieldName, &objName, fmt.Errorf("requested key %s not found", objectKey))
+				return nil, r.reportFieldLookupError(true, description, fieldName, &objName, fmt.Errorf("requested key %s not found", objectKey))
 			}
 		}
 	default:
@@ -134,14 +144,14 @@ func (r *FieldForgeReconciler) lookupObjectField(ctx context.Context, l logr.Log
 	if !isBinary {
 		// This was set on a binary field of the object
 		if !utf8.Valid(bValue) {
-			return nil, r.reportFieldLookupError(ctx, l, fforge, description, fieldName, &objName, fmt.Errorf("requested key %s not valid utf-8", objectKey))
+			return nil, r.reportFieldLookupError(true, description, fieldName, &objName, fmt.Errorf("requested key %s not valid utf-8", objectKey))
 		}
 	}
 
 	return bValue, nil
 }
 
-func (r *FieldForgeReconciler) retrieveData(ctx context.Context, l logr.Logger, fforge *fieldforgev1alpha1.FieldForge, lookups map[string]fieldforgev1alpha1.FieldForgeSpecReference, description string, isBinary bool) (*map[string][]byte, error) {
+func (r *FieldForgeReconciler) retrieveData(ctx context.Context, fforge *fieldforgev1alpha1.FieldForge, lookups map[string]fieldforgev1alpha1.FieldForgeSpecReference, description string, isBinary bool) (*map[string][]byte, error) {
 	result := map[string][]byte{}
 
 	for key, mapping := range lookups {
@@ -151,19 +161,19 @@ func (r *FieldForgeReconciler) retrieveData(ctx context.Context, l logr.Logger, 
 		case "constant":
 			value = []byte(mapping.Constant.Value)
 		case "configmap":
-			value, err = r.lookupObjectField(ctx, l, fforge, description, key, "ConfigMap", mapping.ConfigMap.Name, mapping.ConfigMap.Key, isBinary)
+			value, err = r.lookupObjectField(ctx, fforge, description, key, "ConfigMap", mapping.ConfigMap.Name, mapping.ConfigMap.Key, isBinary)
 			// If it wasn't found, the calling function will update the object
 			if err != nil {
 				return nil, err
 			}
 		case "secret":
-			value, err = r.lookupObjectField(ctx, l, fforge, description, key, "Secret", mapping.Secret.Name, mapping.Secret.Key, isBinary)
+			value, err = r.lookupObjectField(ctx, fforge, description, key, "Secret", mapping.Secret.Name, mapping.Secret.Key, isBinary)
 			// If it wasn't found, the calling function will update the object
 			if err != nil {
 				return nil, err
 			}
 		default:
-			return nil, r.reportFieldLookupError(ctx, l, fforge, description, key, nil, fmt.Errorf("invalid type %s", mapping.GetType()))
+			return nil, r.reportFieldLookupError(false, description, key, nil, fmt.Errorf("invalid type %s", mapping.GetType()))
 		}
 		result[key] = value
 	}
@@ -180,20 +190,20 @@ func mappedBytesToMappedString(input map[string][]byte) (out map[string]string) 
 	return
 }
 
-func (r *FieldForgeReconciler) buildNewObject(ctx context.Context, l logr.Logger, fforge *fieldforgev1alpha1.FieldForge) (client.Object, error) {
-	annotations, err := r.retrieveData(ctx, l, fforge, fforge.Spec.Annotations, "annotations", false)
+func (r *FieldForgeReconciler) buildNewObject(ctx context.Context, fforge *fieldforgev1alpha1.FieldForge) (client.Object, error) {
+	annotations, err := r.retrieveData(ctx, fforge, fforge.Spec.Annotations, "annotations", false)
 	if err != nil || annotations == nil {
 		return nil, err
 	}
-	labels, err := r.retrieveData(ctx, l, fforge, fforge.Spec.Labels, "labels", false)
+	labels, err := r.retrieveData(ctx, fforge, fforge.Spec.Labels, "labels", false)
 	if err != nil || labels == nil {
 		return nil, err
 	}
-	stringData, err := r.retrieveData(ctx, l, fforge, fforge.Spec.StringData, "stringData", false)
+	stringData, err := r.retrieveData(ctx, fforge, fforge.Spec.StringData, "stringData", false)
 	if err != nil || stringData == nil {
 		return nil, err
 	}
-	binaryData, err := r.retrieveData(ctx, l, fforge, fforge.Spec.BinaryData, "binaryData", true)
+	binaryData, err := r.retrieveData(ctx, fforge, fforge.Spec.BinaryData, "binaryData", true)
 	if err != nil || binaryData == nil {
 		return nil, err
 	}
@@ -288,14 +298,15 @@ func (r *FieldForgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 	}
 
-	newObject, err := r.buildNewObject(ctx, l, fforge)
+	newObject, err := r.buildNewObject(ctx, fforge)
 	if newObject != nil {
 		if err := ctrl.SetControllerReference(fforge, newObject, r.Scheme); err != nil {
 			return ctrl.Result{}, err
 		}
 	}
 	if err != nil {
-		userErr, isUserErr := err.(UserError)
+		var userErr UserError
+		isUserErr := errors.As(err, &userErr)
 		if isUserErr {
 			l.Info("Object wasn't created due to user error", "error", userErr)
 			meta.SetStatusCondition(
@@ -324,7 +335,7 @@ func (r *FieldForgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{}, err
 		}
 		if isUserErr {
-			return ctrl.Result{}, nil
+			return ctrl.Result{Requeue: userErr.ShouldRequeue, RequeueAfter: userErr.RequeueAfter}, nil
 		} else {
 			return ctrl.Result{}, err
 		}
@@ -414,8 +425,8 @@ func (r *FieldForgeReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	r.Recorder.Event(fforge, "Normal", "UpdatedTarget", "Updated target object")
 
 	return ctrl.Result{
-		//Requeue:      true,
-		//RequeueAfter: updateTime,
+		Requeue:      true,
+		RequeueAfter: UpdateTime,
 	}, nil
 }
 
