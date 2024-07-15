@@ -73,10 +73,10 @@ metadata:
         }
       ]
     capabilities: Basic Install
-    createdAt: "2024-05-06T09:32:45Z"
+    createdAt: "2024-07-15T09:11:22Z"
     operators.operatorframework.io/builder: operator-sdk-v1.34.1
     operators.operatorframework.io/project_layout: go.kubebuilder.io/v4
-  name: kube-fieldforge.v0.0.1
+  name: kube-fieldforge.v0.0.2
   namespace: placeholder
 spec:
   apiservicedefinitions: {}
@@ -169,6 +169,22 @@ spec:
               labels:
                 control-plane: controller-manager
             spec:
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                    - matchExpressions:
+                      - key: kubernetes.io/arch
+                        operator: In
+                        values:
+                        - amd64
+                        - arm64
+                        - ppc64le
+                        - s390x
+                      - key: kubernetes.io/os
+                        operator: In
+                        values:
+                        - linux
               containers:
               - args:
                 - --secure-listen-address=0.0.0.0:8443
@@ -199,27 +215,27 @@ spec:
                 - --leader-elect
                 command:
                 - /manager
-                image: quay.io/kube-fieldforge/kube-fieldforge:0.0.1
+                image: quay.io/kube-fieldforge/kube-fieldforge:0.0.2
                 livenessProbe:
                   httpGet:
                     path: /healthz
                     port: 8081
-                  initialDelaySeconds: 15
-                  periodSeconds: 20
+                  initialDelaySeconds: 60
+                  periodSeconds: 30
                 name: manager
                 readinessProbe:
                   httpGet:
                     path: /readyz
                     port: 8081
-                  initialDelaySeconds: 5
-                  periodSeconds: 10
+                  initialDelaySeconds: 60
+                  periodSeconds: 30
                 resources:
                   limits:
                     cpu: 500m
-                    memory: 128Mi
+                    memory: 512Mi
                   requests:
-                    cpu: 10m
-                    memory: 64Mi
+                    cpu: 100m
+                    memory: 512Mi
                 securityContext:
                   allowPrivilegeEscalation: false
                   capabilities:
@@ -227,6 +243,8 @@ spec:
                     - ALL
               securityContext:
                 runAsNonRoot: true
+                seccompProfile:
+                  type: RuntimeDefault
               serviceAccountName: kube-fieldforge-controller-manager
               terminationGracePeriodSeconds: 10
       permissions:
@@ -287,4 +305,4 @@ spec:
   provider:
     name: Patrick Uiterwijk
     url: https://github.com/kube-fieldforge
-  version: 0.0.1
+  version: 0.0.2
