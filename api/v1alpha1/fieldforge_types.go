@@ -18,6 +18,7 @@ package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"strings"
 )
 
 type ConstantValue struct {
@@ -40,7 +41,7 @@ type FieldForgeSpecReference struct {
 
 func (c FieldForgeSpecReference) GetType() string {
 	if c.Type != "" {
-		return c.Type
+		return strings.ToLower(c.Type)
 	}
 	if c.ConfigMap.Name != "" {
 		return "configmap"
